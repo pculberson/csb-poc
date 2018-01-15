@@ -37,5 +37,4 @@ public class SyncEventSerde implements Serde<SyncEvent>
     {
         return m_deserializer;
     }
-
 }
