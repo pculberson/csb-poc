@@ -27,7 +27,7 @@ import com.dat.domain.DomainException;
  *
  * @version $Revision: 24304 $ $Date:: 2017-03-17 11:37:39 -0700 #$ $Author: marks $
  */
-public class SyncEvent extends SharingMessage
+public class SyncEvent extends MetaDomainObject
 {
     private String m_fmeId;
 
@@ -122,48 +122,20 @@ public class SyncEvent extends SharingMessage
         }
     }
 
-    public SyncEvent(final byte[] bytes, final boolean clearProperties)
+    public SyncEvent(final byte[] bytes, final boolean clearProperties) throws Exception
     {
         super(bytes);
         init(clearProperties);
     }
 
-    public SyncEvent(final SharingMessage sharingMessage, final boolean clearProperties)
+    public SyncEvent(final byte[] bytes) throws Exception
     {
-        super();
-        setProperties(sharingMessage.getProperties());
-        setXmlContents(sharingMessage.getXmlContents());
-        init(clearProperties);
+        this(bytes, false);
     }
 
-    public SyncEvent(final SharingMessage sharingMessage)
+    public SyncEvent(final String data) throws Exception
     {
-        this(sharingMessage, true);
-    }
-
-    /**
-     * Attempt to reduce the amount of space in use by a particular SyncEvent. Minimally nulls out
-     * the XML contents, but subclasses may choose to do additional pruning.
-     *
-     * <p>
-     * You most likely will have wanted to at least call {@link #hydrate()} <em>before</em> calling
-     * this method.
-     */
-    public void reduce()
-    {
-        setXmlContents((String) null);
-    }
-
-    /**
-     * Assert that the properties have been cleared and the XML string has been nulled out.
-     *
-     * <p>
-     * Note: This should <em>NEVER</em> be called in production!
-     */
-    public void validate()
-    {
-        assert( getProperties().size() == 0 );
-        assert( getXmlContents() == null );
+        this(data.getBytes(), false);
     }
 
     /**

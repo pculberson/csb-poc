@@ -1,0 +1,1253 @@
+package com.dat.sync;
+
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThat;
+
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import org.apache.commons.lang3.StringUtils;
+import org.hamcrest.CoreMatchers;
+import org.junit.BeforeClass;
+import org.junit.Ignore;
+import org.junit.Test;
+
+import com.dat.domain.SimpleAsset;
+import com.jsoniter.JsonIterator;
+import com.jsoniter.any.Any;
+import com.jsoniter.spi.DecodingMode;
+
+/*
+ * $Id: $
+ *
+ * Copyright (C) 2018, TransCore LP. All Rights Reserved
+ */
+
+
+public class SyncEventTest
+{
+    @BeforeClass
+    public static void beforeClass()
+    {
+        JsonIterator.setMode(DecodingMode.DYNAMIC_MODE_AND_MATCH_FIELD_WITH_HASH);
+    }
+
+    @Test
+    public void toMetaDomainObject() throws Exception
+    {
+        final MetaDomainObject o = new MetaDomainObject(SYNC_EVENT);
+        assertThat(o.getProperty("fmeId"), CoreMatchers.containsString("DS1StpUx"));
+    }
+
+    @Test
+    public void toSyncEvent() throws Exception
+    {
+        final SyncEvent o = new SyncEvent(SYNC_EVENT.getBytes(), false);
+        assertThat(o.getFmeId(), CoreMatchers.containsString("DS1StpUx"));
+    }
+
+    @Test
+    public void extractJson() throws Exception
+    {
+        final MetaDomainObject o = new MetaDomainObject(SYNC_EVENT);
+
+        final Any json = JsonIterator.deserialize(o.getPayload());
+
+        assertNotNull(json);
+    }
+
+    final Pattern leadingSpaces = Pattern.compile("( +)\"@class");
+    final Pattern endOfLine = Pattern.compile("[\n\r]");
+
+    private String reformatJson(final Any any)
+    {
+        String json = any.toString();
+
+        if (StringUtils.isAllBlank(json))
+        {
+            return StringUtils.EMPTY;
+        }
+
+        if (!json.startsWith(" {"))
+        {
+            // Not an embedded object, return string value as-is
+            return json;
+        }
+
+        // Drop leading space
+        json = json.substring(1);
+
+        // All embedded objects have their class name as the first element, named "@class". Finding
+        // the number of spaces for this line gives us a relative offset for all subsequent lines.
+        final Matcher m = leadingSpaces.matcher(json);
+        if (!m.find())
+        {
+            return json;
+        }
+
+        // Calculate where to start our substr, starting with 2 spaces
+        final int ofst = m.group(1).length() - 2;
+
+        final StringBuilder sb = new StringBuilder(json.length());
+        for (String line : endOfLine.split(json))
+        {
+            if (sb.length() > 0)
+            {
+                sb.append("\n");
+            }
+
+            if (line.length() >= ofst)
+            {
+                line = line.substring(ofst);
+            }
+
+            sb.append(line);
+        }
+
+        return sb.toString();
+    }
+
+    @Ignore
+    @Test
+    public void extractInsert() throws Exception
+    {
+        final MetaDomainObject o = new MetaDomainObject(SYNC_EVENT);
+
+        final Any json = JsonIterator.deserialize(o.getPayload());
+
+        assertNotNull(json);
+
+        final Any posting = json.get("fmCoreSyncNotification", "insert", "fme", "posting");
+
+        final Any status = posting.get("status");
+
+        System.out.println("Status Information");
+        for (final String key : status.keys())
+        {
+            System.out.printf("  %s=%s\n", key, reformatJson(status.get(key)));
+        }
+        System.out.println();
+
+        final Any basicDefn = posting.get("defn", "basic");
+
+        final Any exposure = posting.get("defn", "exposure");
+
+        System.out.println("Basic defn:\n" + reformatJson(basicDefn));
+
+        System.out.println("startDate:" + reformatJson(exposure.get("startDate")));
+        System.out.println("  endDate:" + reformatJson(exposure.get("endDate")));
+        System.out.println("availability:\n" + reformatJson(exposure.get("availability")));
+    }
+
+    @Test
+    public void p2pToAsset() throws Exception
+    {
+        final SyncEvent syncEvent = new SyncEvent(SYNC_EVENT);
+        final SimpleAsset asset = new SimpleAsset(syncEvent);
+        System.out.println(asset.toJson());
+    }
+
+    @Test
+    public void p2areaToAsset() throws Exception
+    {
+        final SyncEvent syncEvent = new SyncEvent(SYNC_EVENT_STATE_LIST);
+        final SimpleAsset asset = new SimpleAsset(syncEvent);
+        System.out.println(asset.toJson());
+    }
+
+    @Test
+    public void p2openToAsset() throws Exception
+    {
+        final SyncEvent syncEvent = new SyncEvent(SYNC_EVENT_OPEN);
+        final SimpleAsset asset = new SimpleAsset(syncEvent);
+        System.out.println(asset.toJson());
+    }
+
+    @Test
+    public void p2pAsStringToAsset() throws Exception
+    {
+        final SyncEvent syncEvent = new SyncEvent(SYNC_EVENT_STRING);
+        final SimpleAsset asset = new SimpleAsset(syncEvent);
+        System.out.println(asset.toJson());
+    }
+
+    private static final String SYNC_EVENT;
+    private static final String SYNC_EVENT_STATE_LIST;
+    private static final String SYNC_EVENT_OPEN;
+    private static final String SYNC_EVENT_STRING;
+
+    static
+    {
+        final StringBuilder sb = new StringBuilder(15*1024);
+
+        sb.append("__magicNumber=Xyzzy0xfeedbeef1990").append("\n");
+        sb.append("action=insert").append("\n");
+        sb.append("actualBusinessDays=1").append("\n");
+        sb.append("causerGroupMemberUserIds=1849393,1861701,204424,204427,36910,1814671,1895786,62348,226916,1545312,1692366,2085098,2019850,1850525,1850527,2009738").append("\n");
+        sb.append("causerId=1850527").append("\n");
+        sb.append("companyId=21885").append("\n");
+        sb.append("doNotForwardSyncEvent=false").append("\n");
+        sb.append("environment=tfsprd").append("\n");
+        sb.append("eqTypeApiVersion=1").append("\n");
+        sb.append("fmCacheSyncDone=true").append("\n");
+        sb.append("fmeId=DS1StpUx").append("\n");
+        sb.append("fmeType=Asset").append("\n");
+        sb.append("fromSb2=false").append("\n");
+        sb.append("groupId=3302").append("\n");
+        sb.append("groupMemberUserIds=1849393,1861701,204424,204427,36910,1814671,1895786,62348,226916,1545312,1692366,2085098,2019850,1850525,1850527,2009738").append("\n");
+        sb.append("hasTruckstops=false").append("\n");
+        sb.append("isEquipment=false").append("\n");
+        sb.append("isExtendedNetwork=true").append("\n");
+        sb.append("isMatchable=true").append("\n");
+        sb.append("isPrivate=false").append("\n");
+        sb.append("isShipment=true").append("\n");
+        sb.append("officeId=33419").append("\n");
+        sb.append("ownerId=1850527").append("\n");
+        sb.append("registryLookupId=S.551413.--").append("\n");
+        sb.append("siteCode=D").append("\n");
+        sb.append("sourceApplication=ftp").append("\n");
+        sb.append("__encoding=JSON").append("\n");
+        sb.append("__payloadClassname=com.tcore.tfs.domain.fmCoreInternal.FmCoreSyncNotificationDocument").append("\n");
+        sb.append("__payload={").append("\n");
+        sb.append("  \"@class\" : \"com.tcore.tfs.domain.fmCoreInternal.FmCoreSyncNotificationDocument\",").append("\n");
+        sb.append("  \"fmCoreSyncNotification\" : {").append("\n");
+        sb.append("    \"@class\" : \"com.tcore.tfs.domain.fmCoreInternal.FmCoreSyncNotification\",").append("\n");
+        sb.append("    \"when\" : \"2018-01-16T16:16:45.089Z\",").append("\n");
+        sb.append("    \"action\" : \"INSERT\",").append("\n");
+        sb.append("    \"action_schemaVal\" : \"insert\",").append("\n");
+        sb.append("    \"fmeId\" : \"DS1StpUx\",").append("\n");
+        sb.append("    \"who\" : {").append("\n");
+        sb.append("      \"@class\" : \"com.tcore.csb.domain.tcoreTypes.UserTimeStamp\",").append("\n");
+        sb.append("      \"user\" : 1849393,").append("\n");
+        sb.append("      \"date\" : \"2018-01-16T16:16:45.087Z\"").append("\n");
+        sb.append("    },").append("\n");
+        sb.append("    \"updateCount\" : 0,").append("\n");
+        sb.append("    \"groupId\" : 3302,").append("\n");
+        sb.append("    \"insert\" : {").append("\n");
+        sb.append("      \"@class\" : \"com.tcore.tfs.domain.fmCoreInternal.FmcInsert\",").append("\n");
+        sb.append("      \"fme\" : {").append("\n");
+        sb.append("        \"@class\" : \"com.tcore.tfs.domain.fmCoreInternal.SyncedFme\",").append("\n");
+        sb.append("        \"whenIssued\" : \"2018-01-16T16:16:45.094Z\",").append("\n");
+        sb.append("        \"posting\" : {").append("\n");
+        sb.append("          \"@class\" : \"com.tcore.tfs.domain.fmCoreInternal.CorePosting\",").append("\n");
+        sb.append("          \"fmeId\" : \"DS1StpUx\",").append("\n");
+        sb.append("          \"csbSequenceId\" : 1,").append("\n");
+        sb.append("          \"postingId\" : \"DS1StpUx\",").append("\n");
+        sb.append("          \"defn\" : {").append("\n");
+        sb.append("            \"@class\" : \"com.tcore.tfs.domain.tcoreServices.PostingDefinition\",").append("\n");
+        sb.append("            \"basic\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreServices.BasicPostingDefinition\",").append("\n");
+        sb.append("              \"postingType\" : \"SHIPMENT\",").append("\n");
+        sb.append("              \"postingType_schemaVal\" : \"Shipment\",").append("\n");
+        sb.append("              \"equipmentType\" : \"FT\",").append("\n");
+        sb.append("              \"origin\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.tfs.domain.tcoreServices.PostingOrigin\",").append("\n");
+        sb.append("                \"minimalPoint\" : {").append("\n");
+        sb.append("                  \"@class\" : \"com.tcore.csb.domain.tcoreTypes.MinimalPoint\",").append("\n");
+        sb.append("                  \"city\" : \"Seaboard\",").append("\n");
+        sb.append("                  \"stateProvince\" : \"NC\",").append("\n");
+        sb.append("                  \"stateProvince_schemaVal\" : \"NC\",").append("\n");
+        sb.append("                  \"latitude\" : 36.49,").append("\n");
+        sb.append("                  \"longitude\" : -77.44167,").append("\n");
+        sb.append("                  \"county\" : \"Northampton\"").append("\n");
+        sb.append("                }").append("\n");
+        sb.append("              },").append("\n");
+        sb.append("              \"destination\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.tfs.domain.tcoreServices.PostingDestination\",").append("\n");
+        sb.append("                \"minimalPoint\" : {").append("\n");
+        sb.append("                  \"@class\" : \"com.tcore.csb.domain.tcoreTypes.MinimalPoint\",").append("\n");
+        sb.append("                  \"city\" : \"Whitesboro\",").append("\n");
+        sb.append("                  \"stateProvince\" : \"NY\",").append("\n");
+        sb.append("                  \"stateProvince_schemaVal\" : \"NY\",").append("\n");
+        sb.append("                  \"latitude\" : 43.12194,").append("\n");
+        sb.append("                  \"longitude\" : -75.29194,").append("\n");
+        sb.append("                  \"county\" : \"Oneida\"").append("\n");
+        sb.append("                }").append("\n");
+        sb.append("              },").append("\n");
+        sb.append("              \"postersReferenceId\" : \"03303472\"").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"optional\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreServices.OptionalPostingDefinition\",").append("\n");
+        sb.append("              \"ltl\" : false,").append("\n");
+        sb.append("              \"comments\" : [ \"Tim X120\", \"15 Day Pay, No Fee\" ],").append("\n");
+        sb.append("              \"count\" : 1,").append("\n");
+        sb.append("              \"dimensions\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.tfs.domain.tcoreFreightMatching.Dimensions\",").append("\n");
+        sb.append("                \"length\" : {").append("\n");
+        sb.append("                  \"@class\" : \"com.tcore.csb.domain.tcoreTypes.Length\",").append("\n");
+        sb.append("                  \"amount\" : 48.0,").append("\n");
+        sb.append("                  \"unit\" : \"FT\",").append("\n");
+        sb.append("                  \"unit_schemaVal\" : \"ft\"").append("\n");
+        sb.append("                },").append("\n");
+        sb.append("                \"weight\" : {").append("\n");
+        sb.append("                  \"@class\" : \"com.tcore.csb.domain.tcoreTypes.Weight\",").append("\n");
+        sb.append("                  \"amount\" : 48000.0,").append("\n");
+        sb.append("                  \"unit\" : \"LB\",").append("\n");
+        sb.append("                  \"unit_schemaVal\" : \"lb\"").append("\n");
+        sb.append("                }").append("\n");
+        sb.append("              },").append("\n");
+        sb.append("              \"tripMileage\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.csb.domain.tcoreTypes.Mileage\",").append("\n");
+        sb.append("                \"distance\" : {").append("\n");
+        sb.append("                  \"@class\" : \"com.tcore.csb.domain.tcoreTypes.Distance\",").append("\n");
+        sb.append("                  \"amount\" : 594.0,").append("\n");
+        sb.append("                  \"unit\" : \"MI\",").append("\n");
+        sb.append("                  \"unit_schemaVal\" : \"mi\"").append("\n");
+        sb.append("                },").append("\n");
+        sb.append("                \"method\" : \"ROAD\",").append("\n");
+        sb.append("                \"method_schemaVal\" : \"Road\"").append("\n");
+        sb.append("              },").append("\n");
+        sb.append("              \"isFavorite\" : false,").append("\n");
+        sb.append("              \"kept\" : false,").append("\n");
+        sb.append("              \"rate\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.tfs.domain.tcoreFreightMatching.ShipmentRate\",").append("\n");
+        sb.append("                \"baseRate\" : {").append("\n");
+        sb.append("                  \"@class\" : \"com.tcore.csb.domain.tcoreTypes.Currency\",").append("\n");
+        sb.append("                  \"amount\" : 1395.0,").append("\n");
+        sb.append("                  \"currency\" : \"USD\",").append("\n");
+        sb.append("                  \"currency_schemaVal\" : \"USD\"").append("\n");
+        sb.append("                },").append("\n");
+        sb.append("                \"rateBasedOn\" : \"FLAT\",").append("\n");
+        sb.append("                \"rateBasedOn_schemaVal\" : \"Flat\"").append("\n");
+        sb.append("              },").append("\n");
+        sb.append("              \"shipmentSpecific\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.tfs.domain.tcoreServices.OptionalShipmentDefinition\",").append("\n");
+        sb.append("                \"quickPay\" : false,").append("\n");
+        sb.append("                \"loadAdvanceFuel\" : false,").append("\n");
+        sb.append("                \"exclusive\" : false,").append("\n");
+        sb.append("                \"intermodal\" : false,").append("\n");
+        sb.append("                \"stopCount\" : 1").append("\n");
+        sb.append("              }").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"aux\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreServices.PostingAuxiliaryInfo\",").append("\n");
+        sb.append("              \"creditScore\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.tfs.domain.tcoreRegistry.CreditScoreInfo\",").append("\n");
+        sb.append("                \"score\" : 100,").append("\n");
+        sb.append("                \"daysToPay\" : 31,").append("\n");
+        sb.append("                \"scoreTimeStamp\" : \"2018-01-10T02:42:41.000Z\"").append("\n");
+        sb.append("              },").append("\n");
+        sb.append("              \"thirdPartyInfo\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.tfs.domain.tcoreRegistry.ThirdPartyInfo\",").append("\n");
+        sb.append("                \"rmisGreenLight\" : false,").append("\n");
+        sb.append("                \"nmftaMember\" : false,").append("\n");
+        sb.append("                \"ooidaMember\" : false,").append("\n");
+        sb.append("                \"tiaP3Member\" : false,").append("\n");
+        sb.append("                \"assurable\" : true,").append("\n");
+        sb.append("                \"rivieraGreenLight\" : false,").append("\n");
+        sb.append("                \"factorable\" : true,").append("\n");
+        sb.append("                \"abcFactorable\" : true,").append("\n");
+        sb.append("                \"abcCustomer\" : false,").append("\n");
+        sb.append("                \"tiaMember\" : false,").append("\n");
+        sb.append("                \"p3Level\" : 0,").append("\n");
+        sb.append("                \"triumphPay\" : false").append("\n");
+        sb.append("              },").append("\n");
+        sb.append("              \"dotIds\" : [ {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.tfs.domain.tcoreRegistry.DotIds\",").append("\n");
+        sb.append("                \"dotNumber\" : 2228277,").append("\n");
+        sb.append("                \"brokerMcNumber\" : 415612,").append("\n");
+        sb.append("                \"carrierMcNumber\" : 415612").append("\n");
+        sb.append("              }   ]").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"exposure\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreServices.PostingExposure\",").append("\n");
+        sb.append("              \"businessDays\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.tfs.domain.tcoreFreightMatching.BusinessDays\",").append("\n");
+        sb.append("                \"days\" : 1,").append("\n");
+        sb.append("                \"locale\" : {").append("\n");
+        sb.append("                  \"@class\" : \"com.tcore.csb.domain.tcoreTypes.Locale\",").append("\n");
+        sb.append("                  \"language\" : \"en\",").append("\n");
+        sb.append("                  \"country\" : \"US\",").append("\n");
+        sb.append("                  \"country_schemaVal\" : \"US\",").append("\n");
+        sb.append("                  \"utcOffset\" : -28800000").append("\n");
+        sb.append("                }").append("\n");
+        sb.append("              },").append("\n");
+        sb.append("              \"startDate\" : \"2018-01-16T16:16:45.087Z\",").append("\n");
+        sb.append("              \"endDate\" : \"2018-01-17T08:15:00.084Z\",").append("\n");
+        sb.append("              \"availability\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.tfs.domain.tcoreFreightMatching.Availability\",").append("\n");
+        sb.append("                \"earliest\" : \"2018-01-17T08:00:00.000Z\",").append("\n");
+        sb.append("                \"latest\" : \"2018-01-18T08:00:00.000Z\"").append("\n");
+        sb.append("              },").append("\n");
+        sb.append("              \"isMatchable\" : true,").append("\n");
+        sb.append("              \"isPrivate\" : false,").append("\n");
+        sb.append("              \"callback\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.tfs.domain.tcoreFreightMatching.CallbackDefinition\",").append("\n");
+        sb.append("                \"callbackInfo\" : {").append("\n");
+        sb.append("                  \"@class\" : \"com.tcore.tfs.domain.tcoreFreightMatching.PostingCallback\",").append("\n");
+        sb.append("                  \"userId\" : 1850527,").append("\n");
+        sb.append("                  \"legacyCustomerDirectoryId\" : \"S.551413.--\",").append("\n");
+        sb.append("                  \"name\" : {").append("\n");
+        sb.append("                    \"@class\" : \"com.tcore.csb.domain.tcoreTypes.PersonName\",").append("\n");
+        sb.append("                    \"firstName\" : \"Tim\",").append("\n");
+        sb.append("                    \"lastName\" : \"Hofacker\",").append("\n");
+        sb.append("                    \"initials\" : \"TH\"").append("\n");
+        sb.append("                  },").append("\n");
+        sb.append("                  \"companyName\" : \"Shipping Connections Inc\",").append("\n");
+        sb.append("                  \"displayCompany\" : \"S.C. Inc\",").append("\n");
+        sb.append("                  \"postersStateProvince\" : \"AR\",").append("\n");
+        sb.append("                  \"postersStateProvince_schemaVal\" : \"AR\",").append("\n");
+        sb.append("                  \"contact\" : {").append("\n");
+        sb.append("                    \"@class\" : \"com.tcore.tfs.domain.tcoreFreightMatching.PostingCallbackContact\",").append("\n");
+        sb.append("                    \"phone\" : {").append("\n");
+        sb.append("                      \"@class\" : \"com.tcore.tfs.domain.tcoreFreightMatching.CallbackPhoneNumber\",").append("\n");
+        sb.append("                      \"phone\" : {").append("\n");
+        sb.append("                        \"@class\" : \"com.tcore.csb.domain.tcoreTypes.PhoneNumber\",").append("\n");
+        sb.append("                        \"number\" : \"8662712070\"").append("\n");
+        sb.append("                      }").append("\n");
+        sb.append("                    }").append("\n");
+        sb.append("                  }").append("\n");
+        sb.append("                }").append("\n");
+        sb.append("              },").append("\n");
+        sb.append("              \"extendedNetwork\" : true").append("\n");
+        sb.append("            }").append("\n");
+        sb.append("          },").append("\n");
+        sb.append("          \"stats\" : {").append("\n");
+        sb.append("            \"@class\" : \"com.tcore.tfs.domain.tcoreServices.PostingStatistics\"").append("\n");
+        sb.append("          },").append("\n");
+        sb.append("          \"status\" : {").append("\n");
+        sb.append("            \"@class\" : \"com.tcore.tfs.domain.tcoreServices.PostingStatus\",").append("\n");
+        sb.append("            \"fmCoreId\" : 0,").append("\n");
+        sb.append("            \"userId\" : 1850527,").append("\n");
+        sb.append("            \"groupId\" : 3302,").append("\n");
+        sb.append("            \"sourceApplication\" : \"ftp\",").append("\n");
+        sb.append("            \"startDate\" : \"2018-01-16T16:16:45.087Z\",").append("\n");
+        sb.append("            \"endDate\" : \"2018-01-17T08:15:00.084Z\",").append("\n");
+        sb.append("            \"booked\" : \"2018-01-16T16:16:45.087Z\",").append("\n");
+        sb.append("            \"created\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.csb.domain.tcoreTypes.UserTimeStamp\",").append("\n");
+        sb.append("              \"user\" : 1849393,").append("\n");
+        sb.append("              \"date\" : \"2018-01-16T16:16:45.087Z\"").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"updated\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.csb.domain.tcoreTypes.UserTimeStamp\",").append("\n");
+        sb.append("              \"user\" : 1849393,").append("\n");
+        sb.append("              \"date\" : \"2018-01-16T16:16:45.087Z\"").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"registryLookupId\" : \"S.551413.--\",").append("\n");
+        sb.append("            \"customerDirectoryId\" : \"S.551413.169654\",").append("\n");
+        sb.append("            \"priceClass\" : \"FP\",").append("\n");
+        sb.append("            \"lastModified\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.csb.domain.tcoreTypes.UserTimeStamp\",").append("\n");
+        sb.append("              \"user\" : 1849393,").append("\n");
+        sb.append("              \"date\" : \"2018-01-16T16:16:45.087Z\"").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"flags\" : \"X2\",").append("\n");
+        sb.append("            \"crmPosId\" : 2932934,").append("\n");
+        sb.append("            \"updateCounter\" : 0,").append("\n");
+        sb.append("            \"tcsiOfficeId\" : \"S.551413.169654\",").append("\n");
+        sb.append("            \"combinedOfficeId\" : 28546,").append("\n");
+        sb.append("            \"legacyOrderId\" : 0,").append("\n");
+        sb.append("            \"fromLegacySystem\" : false,").append("\n");
+        sb.append("            \"serviced\" : \"2018-01-16T16:16:45.087Z\",").append("\n");
+        sb.append("            \"ownerInitials\" : \"TH\"").append("\n");
+        sb.append("          }").append("\n");
+        sb.append("        }").append("\n");
+        sb.append("      }").append("\n");
+        sb.append("    }").append("\n");
+        sb.append("  }").append("\n");
+        sb.append("}").append("\n");
+
+        SYNC_EVENT = sb.toString();
+        System.out.println("SYNC_EVENT: " + SYNC_EVENT.length());
+
+        sb.setLength(0);
+        sb.append("__magicNumber=Xyzzy0xfeedbeef1990").append("\n");
+        sb.append("action=insert").append("\n");
+        sb.append("causerGroupMemberUserIds=1690770,1690789,1784571").append("\n");
+        sb.append("causerId=1784571").append("\n");
+        sb.append("companyId=885235").append("\n");
+        sb.append("doNotForwardSyncEvent=false").append("\n");
+        sb.append("environment=tfsprd").append("\n");
+        sb.append("eqTypeApiVersion=1").append("\n");
+        sb.append("fmCoreId=532").append("\n");
+        sb.append("fmeId=LE3KPaSF").append("\n");
+        sb.append("fmeType=Asset").append("\n");
+        sb.append("fromSb2=false").append("\n");
+        sb.append("groupId=41718").append("\n");
+        sb.append("groupMemberUserIds=1690770,1690789,1784571").append("\n");
+        sb.append("ignoreLocalPersistence=false").append("\n");
+        sb.append("isEquipment=true").append("\n");
+        sb.append("isMatchable=true").append("\n");
+        sb.append("isPrivate=false").append("\n");
+        sb.append("isShipment=false").append("\n");
+        sb.append("officeId=989000").append("\n");
+        sb.append("ownerId=1784571").append("\n");
+        sb.append("registryLookupId=S.162595.VK").append("\n");
+        sb.append("sendToGetLoaded=false").append("\n");
+        sb.append("siteCode=L").append("\n");
+        sb.append("sourceApplication=dat.any").append("\n");
+        sb.append("__encoding=JSON").append("\n");
+        sb.append("__payloadClassname=com.tcore.tfs.bizobjs.fmCoreInternal.FmCoreSyncNotification_BO").append("\n");
+        sb.append("__payload={").append("\n");
+        sb.append("  \"@class\" : \"com.tcore.tfs.domain.fmCoreInternal.FmCoreSyncNotification\",").append("\n");
+        sb.append("  \"when\" : \"2018-01-16T19:41:20.360Z\",").append("\n");
+        sb.append("  \"action\" : \"INSERT\",").append("\n");
+        sb.append("  \"action_schemaVal\" : \"insert\",").append("\n");
+        sb.append("  \"fmeId\" : \"LE3KPaSF\",").append("\n");
+        sb.append("  \"who\" : {").append("\n");
+        sb.append("    \"@class\" : \"com.tcore.csb.domain.tcoreTypes.UserTimeStamp\",").append("\n");
+        sb.append("    \"user\" : 1784571,").append("\n");
+        sb.append("    \"date\" : \"2018-01-16T19:41:20.360Z\" ").append("\n");
+        sb.append("  },").append("\n");
+        sb.append("  \"updateCount\" : 1,").append("\n");
+        sb.append("  \"ignoreLocalPersistence\" : false,").append("\n");
+        sb.append("  \"groupId\" : 41718,").append("\n");
+        sb.append("  \"insert\" : {").append("\n");
+        sb.append("    \"@class\" : \"com.tcore.tfs.domain.fmCoreInternal.FmcInsert\",").append("\n");
+        sb.append("    \"fme\" : {").append("\n");
+        sb.append("      \"@class\" : \"com.tcore.tfs.domain.fmCoreInternal.SyncedFme\",").append("\n");
+        sb.append("      \"whenIssued\" : \"2018-01-16T19:41:20.360Z\",").append("\n");
+        sb.append("      \"posting\" : {").append("\n");
+        sb.append("        \"@class\" : \"com.tcore.tfs.domain.fmCoreInternal.CorePosting\",").append("\n");
+        sb.append("        \"fmeId\" : \"LE3KPaSF\",").append("\n");
+        sb.append("        \"csbSequenceId\" : 1,").append("\n");
+        sb.append("        \"postingId\" : \"LE3KPaSF\",").append("\n");
+        sb.append("        \"defn\" : {").append("\n");
+        sb.append("          \"@class\" : \"com.tcore.tfs.domain.tcoreServices.PostingDefinition\",").append("\n");
+        sb.append("          \"basic\" : {").append("\n");
+        sb.append("            \"@class\" : \"com.tcore.tfs.domain.tcoreServices.BasicPostingDefinition\",").append("\n");
+        sb.append("            \"postingType\" : \"EQUIPMENT\",").append("\n");
+        sb.append("            \"postingType_schemaVal\" : \"Equipment\",").append("\n");
+        sb.append("            \"equipmentType\" : \"V\",").append("\n");
+        sb.append("            \"origin\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreServices.PostingOrigin\",").append("\n");
+        sb.append("              \"minimalPoint\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.csb.domain.tcoreTypes.MinimalPoint\",").append("\n");
+        sb.append("                \"city\" : \"Miami\",").append("\n");
+        sb.append("                \"stateProvince\" : \"FL\",").append("\n");
+        sb.append("                \"stateProvince_schemaVal\" : \"FL\",").append("\n");
+        sb.append("                \"latitude\" : 25.77389,").append("\n");
+        sb.append("                \"longitude\" : -80.19389,").append("\n");
+        sb.append("                \"county\" : \"Miami Dade\" ").append("\n");
+        sb.append("              } ").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"destination\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreServices.PostingDestination\",").append("\n");
+        sb.append("              \"area\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.csb.domain.tcoreTypes.Area\",").append("\n");
+        sb.append("                \"stateProvinces\" : [ \"GA\", \"NC\", \"SC\" ] ").append("\n");
+        sb.append("              } ").append("\n");
+        sb.append("            } ").append("\n");
+        sb.append("          },").append("\n");
+        sb.append("          \"optional\" : {").append("\n");
+        sb.append("            \"@class\" : \"com.tcore.tfs.domain.tcoreServices.OptionalPostingDefinition\",").append("\n");
+        sb.append("            \"ltl\" : false,").append("\n");
+        sb.append("            \"generalNotes\" : \"\",").append("\n");
+        sb.append("            \"comments\" : [ \"944. avail NOW!\", \"under 35 k\" ],").append("\n");
+        sb.append("            \"count\" : 1,").append("\n");
+        sb.append("            \"dimensions\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreFreightMatching.Dimensions\",").append("\n");
+        sb.append("              \"length\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.csb.domain.tcoreTypes.Length\",").append("\n");
+        sb.append("                \"amount\" : 53.0,").append("\n");
+        sb.append("                \"unit\" : \"FT\",").append("\n");
+        sb.append("                \"unit_schemaVal\" : \"ft\" ").append("\n");
+        sb.append("              },").append("\n");
+        sb.append("              \"weight\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.csb.domain.tcoreTypes.Weight\",").append("\n");
+        sb.append("                \"amount\" : 45000.0,").append("\n");
+        sb.append("                \"unit\" : \"LB\",").append("\n");
+        sb.append("                \"unit_schemaVal\" : \"lb\" ").append("\n");
+        sb.append("              } ").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"tripMileage\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.csb.domain.tcoreTypes.Mileage\",").append("\n");
+        sb.append("              \"distance\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.csb.domain.tcoreTypes.Distance\",").append("\n");
+        sb.append("                \"amount\" : 0.0,").append("\n");
+        sb.append("                \"unit\" : \"MI\",").append("\n");
+        sb.append("                \"unit_schemaVal\" : \"mi\" ").append("\n");
+        sb.append("              },").append("\n");
+        sb.append("              \"method\" : \"AIR\",").append("\n");
+        sb.append("              \"method_schemaVal\" : \"Air\" ").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"displayEnhancements\" : \"\",").append("\n");
+        sb.append("            \"isFavorite\" : false,").append("\n");
+        sb.append("            \"kept\" : false,").append("\n");
+        sb.append("            \"equipmentSpecific\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreServices.OptionalEquipmentDefinition\" ").append("\n");
+        sb.append("            } ").append("\n");
+        sb.append("          },").append("\n");
+        sb.append("          \"aux\" : {").append("\n");
+        sb.append("            \"@class\" : \"com.tcore.tfs.domain.tcoreServices.PostingAuxiliaryInfo\",").append("\n");
+        sb.append("            \"thirdPartyInfo\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreRegistry.ThirdPartyInfo\",").append("\n");
+        sb.append("              \"rmisGreenLight\" : true,").append("\n");
+        sb.append("              \"nmftaMember\" : false,").append("\n");
+        sb.append("              \"ooidaMember\" : false,").append("\n");
+        sb.append("              \"tiaP3Member\" : false,").append("\n");
+        sb.append("              \"assurable\" : false,").append("\n");
+        sb.append("              \"rivieraGreenLight\" : false,").append("\n");
+        sb.append("              \"factorable\" : false,").append("\n");
+        sb.append("              \"abcFactorable\" : false,").append("\n");
+        sb.append("              \"abcCustomer\" : false,").append("\n");
+        sb.append("              \"tiaMember\" : false,").append("\n");
+        sb.append("              \"p3Level\" : 0,").append("\n");
+        sb.append("              \"triumphPay\" : false ").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"dotIds\" : [ {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreRegistry.DotIds\",").append("\n");
+        sb.append("              \"dotNumber\" : 1281430,").append("\n");
+        sb.append("              \"carrierMcNumber\" : 499498 ").append("\n");
+        sb.append("            }   ] ").append("\n");
+        sb.append("          },").append("\n");
+        sb.append("          \"exposure\" : {").append("\n");
+        sb.append("            \"@class\" : \"com.tcore.tfs.domain.tcoreServices.PostingExposure\",").append("\n");
+        sb.append("            \"businessDays\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreFreightMatching.BusinessDays\",").append("\n");
+        sb.append("              \"days\" : 1,").append("\n");
+        sb.append("              \"locale\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.csb.domain.tcoreTypes.Locale\",").append("\n");
+        sb.append("                \"language\" : \"en\",").append("\n");
+        sb.append("                \"country\" : \"US\",").append("\n");
+        sb.append("                \"country_schemaVal\" : \"US\",").append("\n");
+        sb.append("                \"utcOffset\" : -28800000 ").append("\n");
+        sb.append("              } ").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"startDate\" : \"2018-01-16T19:41:20.356Z\",").append("\n");
+        sb.append("            \"endDate\" : \"2018-01-18T07:59:59.999Z\",").append("\n");
+        sb.append("            \"availability\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreFreightMatching.Availability\",").append("\n");
+        sb.append("              \"earliest\" : \"2018-01-16T16:00:00.000Z\",").append("\n");
+        sb.append("              \"latest\" : \"2018-01-18T07:59:59.999Z\" ").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"isMatchable\" : true,").append("\n");
+        sb.append("            \"isPrivate\" : false,").append("\n");
+        sb.append("            \"callback\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreFreightMatching.CallbackDefinition\",").append("\n");
+        sb.append("              \"preferredCallbackMethod\" : \"PRIMARY_PHONE\",").append("\n");
+        sb.append("              \"preferredCallbackMethod_schemaVal\" : \"PrimaryPhone\" ").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"callbackOverride\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreServices.CallbackOverride\",").append("\n");
+        sb.append("              \"overriderId\" : 1784571,").append("\n");
+        sb.append("              \"preferredCallbackMethod\" : \"PRIMARY_PHONE\",").append("\n");
+        sb.append("              \"preferredCallbackMethod_schemaVal\" : \"PrimaryPhone\" ").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"extendedNetwork\" : false,").append("\n");
+        sb.append("            \"allCallbacks\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreServices.AllPostingCallbackContacts\",").append("\n");
+        sb.append("              \"primaryPhone\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.tfs.domain.tcoreFreightMatching.CallbackPhoneNumber\",").append("\n");
+        sb.append("                \"phone\" : {").append("\n");
+        sb.append("                  \"@class\" : \"com.tcore.csb.domain.tcoreTypes.PhoneNumber\",").append("\n");
+        sb.append("                  \"number\" : \"9162222770\" ").append("\n");
+        sb.append("                } ").append("\n");
+        sb.append("              },").append("\n");
+        sb.append("              \"alternatePhone\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.tfs.domain.tcoreFreightMatching.CallbackPhoneNumber\",").append("\n");
+        sb.append("                \"phone\" : {").append("\n");
+        sb.append("                  \"@class\" : \"com.tcore.csb.domain.tcoreTypes.PhoneNumber\",").append("\n");
+        sb.append("                  \"number\" : \"9162613404\" ").append("\n");
+        sb.append("                } ").append("\n");
+        sb.append("              },").append("\n");
+        sb.append("              \"email\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.tfs.domain.tcoreFreightMatching.CallbackEmailAddress\",").append("\n");
+        sb.append("                \"email\" : \"dispatch@whitearrowus.com\" ").append("\n");
+        sb.append("              } ").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"getLoaded\" : false ").append("\n");
+        sb.append("          } ").append("\n");
+        sb.append("        },").append("\n");
+        sb.append("        \"stats\" : {").append("\n");
+        sb.append("          \"@class\" : \"com.tcore.tfs.domain.tcoreServices.PostingStatistics\",").append("\n");
+        sb.append("          \"refreshCount\" : 0,").append("\n");
+        sb.append("          \"editCount\" : 0,").append("\n");
+        sb.append("          \"aggregateRepostCount\" : 1,").append("\n");
+        sb.append("          \"aggregateBusinessDays\" : 0,").append("\n");
+        sb.append("          \"aggregateRolloverCount\" : 0,").append("\n");
+        sb.append("          \"aggregateCancelCount\" : 0,").append("\n");
+        sb.append("          \"lookCount\" : 2,").append("\n");
+        sb.append("          \"takeCount\" : 0,").append("\n");
+        sb.append("          \"exactMatchCount\" : 12,").append("\n");
+        sb.append("          \"similarMatchCount\" : 1 ").append("\n");
+        sb.append("        },").append("\n");
+        sb.append("        \"status\" : {").append("\n");
+        sb.append("          \"@class\" : \"com.tcore.tfs.domain.tcoreServices.PostingStatus\",").append("\n");
+        sb.append("          \"fmCoreId\" : 532,").append("\n");
+        sb.append("          \"userId\" : 1784571,").append("\n");
+        sb.append("          \"groupId\" : 41718,").append("\n");
+        sb.append("          \"sourceApplication\" : \"dat.any\",").append("\n");
+        sb.append("          \"sourceApplicationVersion\" : \"7.0\",").append("\n");
+        sb.append("          \"startDate\" : \"2018-01-16T19:41:20.356Z\",").append("\n");
+        sb.append("          \"endDate\" : \"2018-01-18T07:59:59.999Z\",").append("\n");
+        sb.append("          \"booked\" : \"2018-01-16T19:41:20.360Z\",").append("\n");
+        sb.append("          \"created\" : {").append("\n");
+        sb.append("            \"@class\" : \"com.tcore.csb.domain.tcoreTypes.UserTimeStamp\",").append("\n");
+        sb.append("            \"user\" : 1784571,").append("\n");
+        sb.append("            \"date\" : \"2018-01-16T19:41:20.360Z\" ").append("\n");
+        sb.append("          },").append("\n");
+        sb.append("          \"updated\" : {").append("\n");
+        sb.append("            \"@class\" : \"com.tcore.csb.domain.tcoreTypes.UserTimeStamp\",").append("\n");
+        sb.append("            \"user\" : 1784571,").append("\n");
+        sb.append("            \"date\" : \"2018-01-16T19:41:20.360Z\" ").append("\n");
+        sb.append("          },").append("\n");
+        sb.append("          \"registryLookupId\" : \"S.162595.VK\",").append("\n");
+        sb.append("          \"customerDirectoryId\" : \"S.162595.289385\",").append("\n");
+        sb.append("          \"priceClass\" : \"FB\",").append("\n");
+        sb.append("          \"correlationId\" : \"20535507632\",").append("\n");
+        sb.append("          \"lastModified\" : {").append("\n");
+        sb.append("            \"@class\" : \"com.tcore.csb.domain.tcoreTypes.UserTimeStamp\",").append("\n");
+        sb.append("            \"user\" : 1784571,").append("\n");
+        sb.append("            \"date\" : \"2018-01-16T19:41:20.360Z\" ").append("\n");
+        sb.append("          },").append("\n");
+        sb.append("          \"flags\" : \"1\",").append("\n");
+        sb.append("          \"crmPosId\" : 2638260,").append("\n");
+        sb.append("          \"updateCounter\" : 1,").append("\n");
+        sb.append("          \"tcsiOfficeId\" : \"S.162595.289385\",").append("\n");
+        sb.append("          \"combinedOfficeId\" : 19459,").append("\n");
+        sb.append("          \"updateCount\" : 0,").append("\n");
+        sb.append("          \"previousPostingId\" : \"LE3KMG75\",").append("\n");
+        sb.append("          \"isRecurring\" : false,").append("\n");
+        sb.append("          \"legacyOrderId\" : 0,").append("\n");
+        sb.append("          \"fromLegacySystem\" : false,").append("\n");
+        sb.append("          \"isKept\" : false,").append("\n");
+        sb.append("          \"serviced\" : \"2018-01-16T19:41:20.360Z\",").append("\n");
+        sb.append("          \"ownerInitials\" : \"PZ\" ").append("\n");
+        sb.append("        } ").append("\n");
+        sb.append("      } ").append("\n");
+        sb.append("    } ").append("\n");
+        sb.append("  } ").append("\n");
+        sb.append("} ").append("\n");
+
+        SYNC_EVENT_STATE_LIST = sb.toString();
+        System.out.println("SYNC_EVENT_STATE_LIST: " + SYNC_EVENT_STATE_LIST.length());
+
+        sb.setLength(0);
+        sb.append("__magicNumber=Xyzzy0xfeedbeef1990").append("\n");
+        sb.append("action=insert").append("\n");
+        sb.append("causerGroupMemberUserIds=1562790,1562800,1562801,1562802,1562803,1596912,1684355,1710818,1710819,1716842,1716843,1717756,1740287,1747675,1747676,1747678,1748856,1748857,1751298,1751299,1751300,1778430,1778434,1778435,1778437,1849244,1854793,1869369").append("\n");
+        sb.append("causerId=1716843").append("\n");
+        sb.append("companyId=721817").append("\n");
+        sb.append("doNotForwardSyncEvent=false").append("\n");
+        sb.append("environment=tfsprd").append("\n");
+        sb.append("eqTypeApiVersion=1").append("\n");
+        sb.append("fmCoreId=532").append("\n");
+        sb.append("fmeId=LE3KPaS8").append("\n");
+        sb.append("fmeType=Asset").append("\n");
+        sb.append("fromSb2=false").append("\n");
+        sb.append("groupId=26711").append("\n");
+        sb.append("groupMemberUserIds=1562790,1562800,1562801,1562802,1562803,1596912,1684355,1710818,1710819,1716842,1716843,1717756,1740287,1747675,1747676,1747678,1748856,1748857,1751298,1751299,1751300,1778430,1778434,1778435,1778437,1849244,1854793,1869369").append("\n");
+        sb.append("ignoreLocalPersistence=false").append("\n");
+        sb.append("isEquipment=true").append("\n");
+        sb.append("isMatchable=true").append("\n");
+        sb.append("isPrivate=false").append("\n");
+        sb.append("isShipment=false").append("\n");
+        sb.append("officeId=832192").append("\n");
+        sb.append("ownerId=1716843").append("\n");
+        sb.append("registryLookupId=S.147478.DD").append("\n");
+        sb.append("sendToGetLoaded=false").append("\n");
+        sb.append("siteCode=L").append("\n");
+        sb.append("sourceApplication=dat.any").append("\n");
+        sb.append("__encoding=JSON").append("\n");
+        sb.append("__payloadClassname=com.tcore.tfs.bizobjs.fmCoreInternal.FmCoreSyncNotification_BO").append("\n");
+        sb.append("__payload={").append("\n");
+        sb.append("  \"@class\" : \"com.tcore.tfs.domain.fmCoreInternal.FmCoreSyncNotification\",").append("\n");
+        sb.append("  \"when\" : \"2018-01-16T19:41:01.365Z\",").append("\n");
+        sb.append("  \"action\" : \"INSERT\",").append("\n");
+        sb.append("  \"action_schemaVal\" : \"insert\",").append("\n");
+        sb.append("  \"fmeId\" : \"LE3KPaS8\",").append("\n");
+        sb.append("  \"who\" : {").append("\n");
+        sb.append("    \"@class\" : \"com.tcore.csb.domain.tcoreTypes.UserTimeStamp\",").append("\n");
+        sb.append("    \"user\" : 1716843,").append("\n");
+        sb.append("    \"date\" : \"2018-01-16T19:41:01.365Z\" ").append("\n");
+        sb.append("  },").append("\n");
+        sb.append("  \"updateCount\" : 1,").append("\n");
+        sb.append("  \"ignoreLocalPersistence\" : false,").append("\n");
+        sb.append("  \"groupId\" : 26711,").append("\n");
+        sb.append("  \"insert\" : {").append("\n");
+        sb.append("    \"@class\" : \"com.tcore.tfs.domain.fmCoreInternal.FmcInsert\",").append("\n");
+        sb.append("    \"fme\" : {").append("\n");
+        sb.append("      \"@class\" : \"com.tcore.tfs.domain.fmCoreInternal.SyncedFme\",").append("\n");
+        sb.append("      \"whenIssued\" : \"2018-01-16T19:41:01.365Z\",").append("\n");
+        sb.append("      \"posting\" : {").append("\n");
+        sb.append("        \"@class\" : \"com.tcore.tfs.domain.fmCoreInternal.CorePosting\",").append("\n");
+        sb.append("        \"fmeId\" : \"LE3KPaS8\",").append("\n");
+        sb.append("        \"csbSequenceId\" : 1,").append("\n");
+        sb.append("        \"postingId\" : \"LE3KPaS8\",").append("\n");
+        sb.append("        \"defn\" : {").append("\n");
+        sb.append("          \"@class\" : \"com.tcore.tfs.domain.tcoreServices.PostingDefinition\",").append("\n");
+        sb.append("          \"basic\" : {").append("\n");
+        sb.append("            \"@class\" : \"com.tcore.tfs.domain.tcoreServices.BasicPostingDefinition\",").append("\n");
+        sb.append("            \"postingType\" : \"EQUIPMENT\",").append("\n");
+        sb.append("            \"postingType_schemaVal\" : \"Equipment\",").append("\n");
+        sb.append("            \"equipmentType\" : \"V\",").append("\n");
+        sb.append("            \"origin\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreServices.PostingOrigin\",").append("\n");
+        sb.append("              \"minimalPoint\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.csb.domain.tcoreTypes.MinimalPoint\",").append("\n");
+        sb.append("                \"city\" : \"Toledo\",").append("\n");
+        sb.append("                \"stateProvince\" : \"OH\",").append("\n");
+        sb.append("                \"stateProvince_schemaVal\" : \"OH\",").append("\n");
+        sb.append("                \"latitude\" : 41.66389,").append("\n");
+        sb.append("                \"longitude\" : -83.55528,").append("\n");
+        sb.append("                \"county\" : \"Lucas\" ").append("\n");
+        sb.append("              } ").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"destination\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreServices.PostingDestination\",").append("\n");
+        sb.append("              \"open\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.csb.domain.tcoreTypes.Open\" ").append("\n");
+        sb.append("              } ").append("\n");
+        sb.append("            } ").append("\n");
+        sb.append("          },").append("\n");
+        sb.append("          \"optional\" : {").append("\n");
+        sb.append("            \"@class\" : \"com.tcore.tfs.domain.tcoreServices.OptionalPostingDefinition\",").append("\n");
+        sb.append("            \"ltl\" : false,").append("\n");
+        sb.append("            \"generalNotes\" : \"\",").append("\n");
+        sb.append("            \"comments\" : [ \"Mike   x324\", \"Ready at 4:30PM\" ],").append("\n");
+        sb.append("            \"count\" : 1,").append("\n");
+        sb.append("            \"dimensions\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreFreightMatching.Dimensions\",").append("\n");
+        sb.append("              \"length\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.csb.domain.tcoreTypes.Length\",").append("\n");
+        sb.append("                \"amount\" : 53.0,").append("\n");
+        sb.append("                \"unit\" : \"FT\",").append("\n");
+        sb.append("                \"unit_schemaVal\" : \"ft\" ").append("\n");
+        sb.append("              },").append("\n");
+        sb.append("              \"weight\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.csb.domain.tcoreTypes.Weight\",").append("\n");
+        sb.append("                \"amount\" : 45000.0,").append("\n");
+        sb.append("                \"unit\" : \"LB\",").append("\n");
+        sb.append("                \"unit_schemaVal\" : \"lb\" ").append("\n");
+        sb.append("              } ").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"tripMileage\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.csb.domain.tcoreTypes.Mileage\",").append("\n");
+        sb.append("              \"distance\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.csb.domain.tcoreTypes.Distance\",").append("\n");
+        sb.append("                \"amount\" : 0.0,").append("\n");
+        sb.append("                \"unit\" : \"MI\",").append("\n");
+        sb.append("                \"unit_schemaVal\" : \"mi\" ").append("\n");
+        sb.append("              },").append("\n");
+        sb.append("              \"method\" : \"AIR\",").append("\n");
+        sb.append("              \"method_schemaVal\" : \"Air\" ").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"displayEnhancements\" : \"\",").append("\n");
+        sb.append("            \"isFavorite\" : false,").append("\n");
+        sb.append("            \"kept\" : false,").append("\n");
+        sb.append("            \"equipmentSpecific\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreServices.OptionalEquipmentDefinition\" ").append("\n");
+        sb.append("            } ").append("\n");
+        sb.append("          },").append("\n");
+        sb.append("          \"aux\" : {").append("\n");
+        sb.append("            \"@class\" : \"com.tcore.tfs.domain.tcoreServices.PostingAuxiliaryInfo\",").append("\n");
+        sb.append("            \"thirdPartyInfo\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreRegistry.ThirdPartyInfo\",").append("\n");
+        sb.append("              \"rmisGreenLight\" : true,").append("\n");
+        sb.append("              \"nmftaMember\" : false,").append("\n");
+        sb.append("              \"ooidaMember\" : false,").append("\n");
+        sb.append("              \"tiaP3Member\" : false,").append("\n");
+        sb.append("              \"assurable\" : false,").append("\n");
+        sb.append("              \"rivieraGreenLight\" : false,").append("\n");
+        sb.append("              \"factorable\" : false,").append("\n");
+        sb.append("              \"abcFactorable\" : false,").append("\n");
+        sb.append("              \"abcCustomer\" : true,").append("\n");
+        sb.append("              \"tiaMember\" : false,").append("\n");
+        sb.append("              \"p3Level\" : 0,").append("\n");
+        sb.append("              \"triumphPay\" : false ").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"dotIds\" : [ {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreRegistry.DotIds\",").append("\n");
+        sb.append("              \"dotNumber\" : 2634384,").append("\n");
+        sb.append("              \"carrierMcNumber\" : 185660 ").append("\n");
+        sb.append("            }   ] ").append("\n");
+        sb.append("          },").append("\n");
+        sb.append("          \"exposure\" : {").append("\n");
+        sb.append("            \"@class\" : \"com.tcore.tfs.domain.tcoreServices.PostingExposure\",").append("\n");
+        sb.append("            \"businessDays\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreFreightMatching.BusinessDays\",").append("\n");
+        sb.append("              \"days\" : 1,").append("\n");
+        sb.append("              \"locale\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.csb.domain.tcoreTypes.Locale\",").append("\n");
+        sb.append("                \"language\" : \"en\",").append("\n");
+        sb.append("                \"country\" : \"US\",").append("\n");
+        sb.append("                \"country_schemaVal\" : \"US\",").append("\n");
+        sb.append("                \"utcOffset\" : -28800000 ").append("\n");
+        sb.append("              } ").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"startDate\" : \"2018-01-16T19:41:01.362Z\",").append("\n");
+        sb.append("            \"endDate\" : \"2018-01-17T07:59:59.999Z\",").append("\n");
+        sb.append("            \"availability\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreFreightMatching.Availability\",").append("\n");
+        sb.append("              \"earliest\" : \"2018-01-16T16:00:00.000Z\",").append("\n");
+        sb.append("              \"latest\" : \"2018-01-17T07:59:59.999Z\" ").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"isMatchable\" : true,").append("\n");
+        sb.append("            \"isPrivate\" : false,").append("\n");
+        sb.append("            \"callback\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreFreightMatching.CallbackDefinition\",").append("\n");
+        sb.append("              \"preferredCallbackMethod\" : \"PRIMARY_PHONE\",").append("\n");
+        sb.append("              \"preferredCallbackMethod_schemaVal\" : \"PrimaryPhone\" ").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"callbackOverride\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreServices.CallbackOverride\",").append("\n");
+        sb.append("              \"overriderId\" : 1716843,").append("\n");
+        sb.append("              \"preferredCallbackMethod\" : \"PRIMARY_PHONE\",").append("\n");
+        sb.append("              \"preferredCallbackMethod_schemaVal\" : \"PrimaryPhone\" ").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"extendedNetwork\" : false,").append("\n");
+        sb.append("            \"allCallbacks\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreServices.AllPostingCallbackContacts\",").append("\n");
+        sb.append("              \"primaryPhone\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.tfs.domain.tcoreFreightMatching.CallbackPhoneNumber\",").append("\n");
+        sb.append("                \"phone\" : {").append("\n");
+        sb.append("                  \"@class\" : \"com.tcore.csb.domain.tcoreTypes.PhoneNumber\",").append("\n");
+        sb.append("                  \"number\" : \"6304804580\" ").append("\n");
+        sb.append("                } ").append("\n");
+        sb.append("              },").append("\n");
+        sb.append("              \"email\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.tfs.domain.tcoreFreightMatching.CallbackEmailAddress\",").append("\n");
+        sb.append("                \"email\" : \"dispatch@amerifreightway.com\" ").append("\n");
+        sb.append("              } ").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"getLoaded\" : false ").append("\n");
+        sb.append("          } ").append("\n");
+        sb.append("        },").append("\n");
+        sb.append("        \"stats\" : {").append("\n");
+        sb.append("          \"@class\" : \"com.tcore.tfs.domain.tcoreServices.PostingStatistics\",").append("\n");
+        sb.append("          \"refreshCount\" : 0,").append("\n");
+        sb.append("          \"editCount\" : 0,").append("\n");
+        sb.append("          \"aggregateRepostCount\" : 0,").append("\n");
+        sb.append("          \"aggregateBusinessDays\" : 0,").append("\n");
+        sb.append("          \"aggregateRolloverCount\" : 0,").append("\n");
+        sb.append("          \"aggregateCancelCount\" : 0,").append("\n");
+        sb.append("          \"lookCount\" : 0,").append("\n");
+        sb.append("          \"takeCount\" : 0,").append("\n");
+        sb.append("          \"exactMatchCount\" : 0,").append("\n");
+        sb.append("          \"similarMatchCount\" : 0 ").append("\n");
+        sb.append("        },").append("\n");
+        sb.append("        \"status\" : {").append("\n");
+        sb.append("          \"@class\" : \"com.tcore.tfs.domain.tcoreServices.PostingStatus\",").append("\n");
+        sb.append("          \"fmCoreId\" : 532,").append("\n");
+        sb.append("          \"userId\" : 1716843,").append("\n");
+        sb.append("          \"groupId\" : 26711,").append("\n");
+        sb.append("          \"sourceApplication\" : \"dat.any\",").append("\n");
+        sb.append("          \"sourceApplicationVersion\" : \"7.0\",").append("\n");
+        sb.append("          \"startDate\" : \"2018-01-16T19:41:01.362Z\",").append("\n");
+        sb.append("          \"endDate\" : \"2018-01-17T07:59:59.999Z\",").append("\n");
+        sb.append("          \"booked\" : \"2018-01-16T19:41:01.365Z\",").append("\n");
+        sb.append("          \"created\" : {").append("\n");
+        sb.append("            \"@class\" : \"com.tcore.csb.domain.tcoreTypes.UserTimeStamp\",").append("\n");
+        sb.append("            \"user\" : 1716843,").append("\n");
+        sb.append("            \"date\" : \"2018-01-16T19:41:01.365Z\" ").append("\n");
+        sb.append("          },").append("\n");
+        sb.append("          \"updated\" : {").append("\n");
+        sb.append("            \"@class\" : \"com.tcore.csb.domain.tcoreTypes.UserTimeStamp\",").append("\n");
+        sb.append("            \"user\" : 1716843,").append("\n");
+        sb.append("            \"date\" : \"2018-01-16T19:41:01.365Z\" ").append("\n");
+        sb.append("          },").append("\n");
+        sb.append("          \"registryLookupId\" : \"S.147478.DD\",").append("\n");
+        sb.append("          \"customerDirectoryId\" : \"S.147478.272848\",").append("\n");
+        sb.append("          \"priceClass\" : \"FB\",").append("\n");
+        sb.append("          \"correlationId\" : \"20535493660\",").append("\n");
+        sb.append("          \"lastModified\" : {").append("\n");
+        sb.append("            \"@class\" : \"com.tcore.csb.domain.tcoreTypes.UserTimeStamp\",").append("\n");
+        sb.append("            \"user\" : 1716843,").append("\n");
+        sb.append("            \"date\" : \"2018-01-16T19:41:01.365Z\" ").append("\n");
+        sb.append("          },").append("\n");
+        sb.append("          \"flags\" : \"1\",").append("\n");
+        sb.append("          \"crmPosId\" : 2985108,").append("\n");
+        sb.append("          \"updateCounter\" : 1,").append("\n");
+        sb.append("          \"tcsiOfficeId\" : \"S.147478.272848\",").append("\n");
+        sb.append("          \"combinedOfficeId\" : 194024,").append("\n");
+        sb.append("          \"updateCount\" : 0,").append("\n");
+        sb.append("          \"isRecurring\" : false,").append("\n");
+        sb.append("          \"legacyOrderId\" : 0,").append("\n");
+        sb.append("          \"fromLegacySystem\" : false,").append("\n");
+        sb.append("          \"isKept\" : false,").append("\n");
+        sb.append("          \"serviced\" : \"2018-01-16T19:41:01.365Z\",").append("\n");
+        sb.append("          \"ownerInitials\" : \"MR\" ").append("\n");
+        sb.append("        } ").append("\n");
+        sb.append("      } ").append("\n");
+        sb.append("    } ").append("\n");
+        sb.append("  } ").append("\n");
+        sb.append("} ").append("\n");
+
+        SYNC_EVENT_OPEN = sb.toString();
+        System.out.println("SYNC_EVENT_OPEN: " + SYNC_EVENT_OPEN.length());
+
+        sb.setLength(0);
+        sb.append("__magicNumber=Xyzzy0xfeedbeef1990").append("\n");
+        sb.append("action=insert").append("\n");
+        sb.append("causerGroupMemberUserIds=65931,69386,69388").append("\n");
+        sb.append("causerId=69386").append("\n");
+        sb.append("companyId=34979").append("\n");
+        sb.append("doNotForwardSyncEvent=false").append("\n");
+        sb.append("environment=tfsprd").append("\n");
+        sb.append("eqTypeApiVersion=1").append("\n");
+        sb.append("fmCoreId=533").append("\n");
+        sb.append("fmeId=LS3SM9dx").append("\n");
+        sb.append("fmeType=Asset").append("\n");
+        sb.append("fromSb2=false").append("\n");
+        sb.append("groupId=4276").append("\n");
+        sb.append("groupMemberUserIds=65931,69386,69388").append("\n");
+        sb.append("hasTruckstops=false").append("\n");
+        sb.append("ignoreLocalPersistence=false").append("\n");
+        sb.append("isEquipment=false").append("\n");
+        sb.append("isExtendedNetwork=false").append("\n");
+        sb.append("isMatchable=true").append("\n");
+        sb.append("isPrivate=false").append("\n");
+        sb.append("isShipment=true").append("\n");
+        sb.append("officeId=49942").append("\n");
+        sb.append("ownerId=69386").append("\n");
+        sb.append("registryLookupId=S.418702.RD").append("\n");
+        sb.append("sendToGetLoaded=false").append("\n");
+        sb.append("siteCode=L").append("\n");
+        sb.append("sourceApplication=dat.any").append("\n");
+        sb.append("__encoding=JSON").append("\n");
+        sb.append("__payloadClassname=java.lang.String").append("\n");
+        sb.append("__payload={").append("\n");
+        sb.append("  \"@class\" : \"com.tcore.tfs.domain.fmCoreInternal.FmCoreSyncNotification\",").append("\n");
+        sb.append("  \"when\" : \"2018-01-22T17:43:43.168Z\",").append("\n");
+        sb.append("  \"action\" : \"INSERT\",").append("\n");
+        sb.append("  \"action_schemaVal\" : \"insert\",").append("\n");
+        sb.append("  \"fmeId\" : \"LS3SM9dx\",").append("\n");
+        sb.append("  \"who\" : {").append("\n");
+        sb.append("    \"@class\" : \"com.tcore.csb.domain.tcoreTypes.UserTimeStamp\",").append("\n");
+        sb.append("    \"user\" : 69386,").append("\n");
+        sb.append("    \"date\" : \"2018-01-22T17:43:43.168Z\" ").append("\n");
+        sb.append("  },").append("\n");
+        sb.append("  \"updateCount\" : 1,").append("\n");
+        sb.append("  \"ignoreLocalPersistence\" : false,").append("\n");
+        sb.append("  \"groupId\" : 4276,").append("\n");
+        sb.append("  \"insert\" : {").append("\n");
+        sb.append("    \"@class\" : \"com.tcore.tfs.domain.fmCoreInternal.FmcInsert\",").append("\n");
+        sb.append("    \"fme\" : {").append("\n");
+        sb.append("      \"@class\" : \"com.tcore.tfs.domain.fmCoreInternal.SyncedFme\",").append("\n");
+        sb.append("      \"whenIssued\" : \"2018-01-22T17:43:43.168Z\",").append("\n");
+        sb.append("      \"posting\" : {").append("\n");
+        sb.append("        \"@class\" : \"com.tcore.tfs.domain.fmCoreInternal.CorePosting\",").append("\n");
+        sb.append("        \"fmeId\" : \"LS3SM9dx\",").append("\n");
+        sb.append("        \"csbSequenceId\" : 1,").append("\n");
+        sb.append("        \"postingId\" : \"LS3SM9dx\",").append("\n");
+        sb.append("        \"defn\" : {").append("\n");
+        sb.append("          \"@class\" : \"com.tcore.tfs.domain.tcoreServices.PostingDefinition\",").append("\n");
+        sb.append("          \"basic\" : {").append("\n");
+        sb.append("            \"@class\" : \"com.tcore.tfs.domain.tcoreServices.BasicPostingDefinition\",").append("\n");
+        sb.append("            \"postingType\" : \"SHIPMENT\",").append("\n");
+        sb.append("            \"postingType_schemaVal\" : \"Shipment\",").append("\n");
+        sb.append("            \"equipmentType\" : \"VR\",").append("\n");
+        sb.append("            \"origin\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreServices.PostingOrigin\",").append("\n");
+        sb.append("              \"minimalPoint\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.csb.domain.tcoreTypes.MinimalPoint\",").append("\n");
+        sb.append("                \"city\" : \"Tacoma\",").append("\n");
+        sb.append("                \"stateProvince\" : \"WA\",").append("\n");
+        sb.append("                \"stateProvince_schemaVal\" : \"WA\",").append("\n");
+        sb.append("                \"latitude\" : 47.25306,").append("\n");
+        sb.append("                \"longitude\" : -122.44306,").append("\n");
+        sb.append("                \"county\" : \"Pierce\" ").append("\n");
+        sb.append("              } ").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"destination\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreServices.PostingDestination\",").append("\n");
+        sb.append("              \"minimalPoint\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.csb.domain.tcoreTypes.MinimalPoint\",").append("\n");
+        sb.append("                \"city\" : \"Torrance\",").append("\n");
+        sb.append("                \"stateProvince\" : \"CA\",").append("\n");
+        sb.append("                \"stateProvince_schemaVal\" : \"CA\",").append("\n");
+        sb.append("                \"latitude\" : 33.83583,").append("\n");
+        sb.append("                \"longitude\" : -118.33972,").append("\n");
+        sb.append("                \"county\" : \"Los Angeles\" ").append("\n");
+        sb.append("              } ").append("\n");
+        sb.append("            } ").append("\n");
+        sb.append("          },").append("\n");
+        sb.append("          \"optional\" : {").append("\n");
+        sb.append("            \"@class\" : \"com.tcore.tfs.domain.tcoreServices.OptionalPostingDefinition\",").append("\n");
+        sb.append("            \"ltl\" : true,").append("\n");
+        sb.append("            \"generalNotes\" : \"\",").append("\n");
+        sb.append("            \"comments\" : [  ],").append("\n");
+        sb.append("            \"count\" : 1,").append("\n");
+        sb.append("            \"dimensions\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreFreightMatching.Dimensions\",").append("\n");
+        sb.append("              \"length\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.csb.domain.tcoreTypes.Length\",").append("\n");
+        sb.append("                \"amount\" : 16.0,").append("\n");
+        sb.append("                \"unit\" : \"FT\",").append("\n");
+        sb.append("                \"unit_schemaVal\" : \"ft\" ").append("\n");
+        sb.append("              },").append("\n");
+        sb.append("              \"weight\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.csb.domain.tcoreTypes.Weight\",").append("\n");
+        sb.append("                \"amount\" : 3000.0,").append("\n");
+        sb.append("                \"unit\" : \"LB\",").append("\n");
+        sb.append("                \"unit_schemaVal\" : \"lb\" ").append("\n");
+        sb.append("              } ").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"tripMileage\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.csb.domain.tcoreTypes.Mileage\",").append("\n");
+        sb.append("              \"distance\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.csb.domain.tcoreTypes.Distance\",").append("\n");
+        sb.append("                \"amount\" : 1117.0,").append("\n");
+        sb.append("                \"unit\" : \"MI\",").append("\n");
+        sb.append("                \"unit_schemaVal\" : \"mi\" ").append("\n");
+        sb.append("              },").append("\n");
+        sb.append("              \"method\" : \"ROAD\",").append("\n");
+        sb.append("              \"method_schemaVal\" : \"Road\" ").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"displayEnhancements\" : \"\",").append("\n");
+        sb.append("            \"isFavorite\" : false,").append("\n");
+        sb.append("            \"kept\" : false,").append("\n");
+        sb.append("            \"shipmentSpecific\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreServices.OptionalShipmentDefinition\",").append("\n");
+        sb.append("              \"quickPay\" : false,").append("\n");
+        sb.append("              \"loadAdvanceFuel\" : false,").append("\n");
+        sb.append("              \"exclusive\" : false,").append("\n");
+        sb.append("              \"intermodal\" : false,").append("\n");
+        sb.append("              \"commodity\" : \"\",").append("\n");
+        sb.append("              \"stopCount\" : 1 ").append("\n");
+        sb.append("            } ").append("\n");
+        sb.append("          },").append("\n");
+        sb.append("          \"aux\" : {").append("\n");
+        sb.append("            \"@class\" : \"com.tcore.tfs.domain.tcoreServices.PostingAuxiliaryInfo\",").append("\n");
+        sb.append("            \"creditScore\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreRegistry.CreditScoreInfo\",").append("\n");
+        sb.append("              \"score\" : 99,").append("\n");
+        sb.append("              \"daysToPay\" : 36,").append("\n");
+        sb.append("              \"scoreTimeStamp\" : \"2018-01-17T02:42:36.000Z\" ").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"thirdPartyInfo\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreRegistry.ThirdPartyInfo\",").append("\n");
+        sb.append("              \"rmisGreenLight\" : true,").append("\n");
+        sb.append("              \"nmftaMember\" : false,").append("\n");
+        sb.append("              \"ooidaMember\" : false,").append("\n");
+        sb.append("              \"tiaP3Member\" : false,").append("\n");
+        sb.append("              \"assurable\" : true,").append("\n");
+        sb.append("              \"rivieraGreenLight\" : false,").append("\n");
+        sb.append("              \"factorable\" : true,").append("\n");
+        sb.append("              \"abcFactorable\" : true,").append("\n");
+        sb.append("              \"abcCustomer\" : false,").append("\n");
+        sb.append("              \"tiaMember\" : false,").append("\n");
+        sb.append("              \"p3Level\" : 0,").append("\n");
+        sb.append("              \"triumphPay\" : false ").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"dotIds\" : [ {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreRegistry.DotIds\",").append("\n");
+        sb.append("              \"dotNumber\" : 167896,").append("\n");
+        sb.append("              \"brokerMcNumber\" : 153865,").append("\n");
+        sb.append("              \"carrierMcNumber\" : 153865 ").append("\n");
+        sb.append("            }   ] ").append("\n");
+        sb.append("          },").append("\n");
+        sb.append("          \"exposure\" : {").append("\n");
+        sb.append("            \"@class\" : \"com.tcore.tfs.domain.tcoreServices.PostingExposure\",").append("\n");
+        sb.append("            \"businessDays\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreFreightMatching.BusinessDays\",").append("\n");
+        sb.append("              \"days\" : 1,").append("\n");
+        sb.append("              \"locale\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.csb.domain.tcoreTypes.Locale\",").append("\n");
+        sb.append("                \"language\" : \"en\",").append("\n");
+        sb.append("                \"country\" : \"US\",").append("\n");
+        sb.append("                \"country_schemaVal\" : \"US\",").append("\n");
+        sb.append("                \"utcOffset\" : -28800000 ").append("\n");
+        sb.append("              } ").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"startDate\" : \"2018-01-22T17:43:43.165Z\",").append("\n");
+        sb.append("            \"endDate\" : \"2018-01-23T07:59:59.999Z\",").append("\n");
+        sb.append("            \"availability\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreFreightMatching.Availability\",").append("\n");
+        sb.append("              \"earliest\" : \"2018-01-22T16:00:00.000Z\",").append("\n");
+        sb.append("              \"latest\" : \"2018-01-23T07:59:59.999Z\" ").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"isMatchable\" : true,").append("\n");
+        sb.append("            \"isPrivate\" : false,").append("\n");
+        sb.append("            \"callback\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreFreightMatching.CallbackDefinition\",").append("\n");
+        sb.append("              \"preferredCallbackMethod\" : \"PRIMARY_PHONE\",").append("\n");
+        sb.append("              \"preferredCallbackMethod_schemaVal\" : \"PrimaryPhone\" ").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"callbackOverride\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreServices.CallbackOverride\",").append("\n");
+        sb.append("              \"overriderId\" : 69386,").append("\n");
+        sb.append("              \"preferredCallbackMethod\" : \"PRIMARY_PHONE\",").append("\n");
+        sb.append("              \"preferredCallbackMethod_schemaVal\" : \"PrimaryPhone\" ").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"extendedNetwork\" : false,").append("\n");
+        sb.append("            \"allCallbacks\" : {").append("\n");
+        sb.append("              \"@class\" : \"com.tcore.tfs.domain.tcoreServices.AllPostingCallbackContacts\",").append("\n");
+        sb.append("              \"primaryPhone\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.tfs.domain.tcoreFreightMatching.CallbackPhoneNumber\",").append("\n");
+        sb.append("                \"phone\" : {").append("\n");
+        sb.append("                  \"@class\" : \"com.tcore.csb.domain.tcoreTypes.PhoneNumber\",").append("\n");
+        sb.append("                  \"number\" : \"8017855400\" ").append("\n");
+        sb.append("                } ").append("\n");
+        sb.append("              },").append("\n");
+        sb.append("              \"alternatePhone\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.tfs.domain.tcoreFreightMatching.CallbackPhoneNumber\",").append("\n");
+        sb.append("                \"phone\" : {").append("\n");
+        sb.append("                  \"@class\" : \"com.tcore.csb.domain.tcoreTypes.PhoneNumber\",").append("\n");
+        sb.append("                  \"number\" : \"8013763366\" ").append("\n");
+        sb.append("                } ").append("\n");
+        sb.append("              },").append("\n");
+        sb.append("              \"email\" : {").append("\n");
+        sb.append("                \"@class\" : \"com.tcore.tfs.domain.tcoreFreightMatching.CallbackEmailAddress\",").append("\n");
+        sb.append("                \"email\" : \"driggsinc@gmail.com\" ").append("\n");
+        sb.append("              } ").append("\n");
+        sb.append("            },").append("\n");
+        sb.append("            \"getLoaded\" : false ").append("\n");
+        sb.append("          } ").append("\n");
+        sb.append("        },").append("\n");
+        sb.append("        \"stats\" : {").append("\n");
+        sb.append("          \"@class\" : \"com.tcore.tfs.domain.tcoreServices.PostingStatistics\",").append("\n");
+        sb.append("          \"refreshCount\" : 0,").append("\n");
+        sb.append("          \"editCount\" : 0,").append("\n");
+        sb.append("          \"aggregateRepostCount\" : 0,").append("\n");
+        sb.append("          \"aggregateBusinessDays\" : 0,").append("\n");
+        sb.append("          \"aggregateRolloverCount\" : 0,").append("\n");
+        sb.append("          \"aggregateCancelCount\" : 0,").append("\n");
+        sb.append("          \"lookCount\" : 0,").append("\n");
+        sb.append("          \"takeCount\" : 0,").append("\n");
+        sb.append("          \"exactMatchCount\" : 0,").append("\n");
+        sb.append("          \"similarMatchCount\" : 0 ").append("\n");
+        sb.append("        },").append("\n");
+        sb.append("        \"status\" : {").append("\n");
+        sb.append("          \"@class\" : \"com.tcore.tfs.domain.tcoreServices.PostingStatus\",").append("\n");
+        sb.append("          \"fmCoreId\" : 533,").append("\n");
+        sb.append("          \"userId\" : 69386,").append("\n");
+        sb.append("          \"groupId\" : 4276,").append("\n");
+        sb.append("          \"sourceApplication\" : \"dat.any\",").append("\n");
+        sb.append("          \"sourceApplicationVersion\" : \"7.0\",").append("\n");
+        sb.append("          \"startDate\" : \"2018-01-22T17:43:43.165Z\",").append("\n");
+        sb.append("          \"endDate\" : \"2018-01-23T07:59:59.999Z\",").append("\n");
+        sb.append("          \"booked\" : \"2018-01-22T17:43:43.168Z\",").append("\n");
+        sb.append("          \"created\" : {").append("\n");
+        sb.append("            \"@class\" : \"com.tcore.csb.domain.tcoreTypes.UserTimeStamp\",").append("\n");
+        sb.append("            \"user\" : 69386,").append("\n");
+        sb.append("            \"date\" : \"2018-01-22T17:43:43.168Z\" ").append("\n");
+        sb.append("          },").append("\n");
+        sb.append("          \"updated\" : {").append("\n");
+        sb.append("            \"@class\" : \"com.tcore.csb.domain.tcoreTypes.UserTimeStamp\",").append("\n");
+        sb.append("            \"user\" : 69386,").append("\n");
+        sb.append("            \"date\" : \"2018-01-22T17:43:43.168Z\" ").append("\n");
+        sb.append("          },").append("\n");
+        sb.append("          \"registryLookupId\" : \"S.418702.RD\",").append("\n");
+        sb.append("          \"customerDirectoryId\" : \"S.418702.224630\",").append("\n");
+        sb.append("          \"priceClass\" : \"FH\",").append("\n");
+        sb.append("          \"correlationId\" : \"20646810188\",").append("\n");
+        sb.append("          \"lastModified\" : {").append("\n");
+        sb.append("            \"@class\" : \"com.tcore.csb.domain.tcoreTypes.UserTimeStamp\",").append("\n");
+        sb.append("            \"user\" : 69386,").append("\n");
+        sb.append("            \"date\" : \"2018-01-22T17:43:43.168Z\" ").append("\n");
+        sb.append("          },").append("\n");
+        sb.append("          \"flags\" : \"1\",").append("\n");
+        sb.append("          \"crmPosId\" : 3241400,").append("\n");
+        sb.append("          \"updateCounter\" : 1,").append("\n");
+        sb.append("          \"tcsiOfficeId\" : \"S.418702.224630\",").append("\n");
+        sb.append("          \"combinedOfficeId\" : 23836,").append("\n");
+        sb.append("          \"updateCount\" : 0,").append("\n");
+        sb.append("          \"isRecurring\" : false,").append("\n");
+        sb.append("          \"legacyOrderId\" : 0,").append("\n");
+        sb.append("          \"fromLegacySystem\" : false,").append("\n");
+        sb.append("          \"isKept\" : false,").append("\n");
+        sb.append("          \"serviced\" : \"2018-01-22T17:43:43.168Z\",").append("\n");
+        sb.append("          \"ownerInitials\" : \"RD\" ").append("\n");
+        sb.append("        } ").append("\n");
+        sb.append("      } ").append("\n");
+        sb.append("    } ").append("\n");
+        sb.append("  } ").append("\n");
+        sb.append("}").append("\n");
+
+        SYNC_EVENT_STRING = sb.toString();
+        System.out.println("SYNC_EVENT_STRING: " + SYNC_EVENT_STRING.length());
+    }
+}

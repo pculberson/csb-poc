@@ -24,6 +24,13 @@ public class SyncEventDeserializer implements Deserializer<SyncEvent>
     @Override
     public SyncEvent deserialize(final String topic, final byte[] data)
     {
-        return new SyncEvent(data, false);
+        try
+        {
+            return new SyncEvent(data, false);
+        }
+        catch (final Exception e)
+        {
+            return null;
+        }
     }
 }
